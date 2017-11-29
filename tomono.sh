@@ -64,6 +64,13 @@ function create-mono {
         git remote add "$name" "$repo"
         git fetch -qa "$name"
 
+        git checkout -q "$name"/master
+
+        merged_branches=$(git branch -r --merged  | grep -v master || true )
+        if [ "$merged_branches" ]; then
+          echo "$merged_branches" | sed "s/$name\///" | xargs -n 1 git push --delete "$name"
+        fi
+
         # Merge every branch from the sub repo into the mono repo, into a
         # branch of the same name (create one if it doesn't exist).
         remote-branches "$name" | while read branch; do
