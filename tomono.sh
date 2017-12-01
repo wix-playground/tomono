@@ -94,7 +94,7 @@ function create-mono {
                                                  sed "s~\(	\)\(.*\)~\1'"$name"'/\2~" | \
                                                  GIT_INDEX_FILE=$GIT_INDEX_FILE.new \
                                                  git update-index --index-info && \
-                                                 mv "$GIT_INDEX_FILE.new" "$GIT_INDEX_FILE"' @
+                                                 mv "$GIT_INDEX_FILE.new" "$GIT_INDEX_FILE" || true' @
             git checkout -q "$branch"
             git merge -q "$temp_branch" --allow-unrelated-histories
             git branch -q -D "$temp_branch"
