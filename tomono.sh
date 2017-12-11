@@ -18,7 +18,6 @@ else
     is_script=false
 fi
 
-
 function read_repositories {
     sed -e 's/#.*//' | grep .
 }
@@ -33,19 +32,44 @@ function remote-branches {
 # 1. The (git cloneable) location of the repository
 # 2. The name of the target directory in the core repository
 function create-mono {
+
+    ## Argument parsing magic
+    ## monorepo url and name are positional, but "--continue" and "--subdir [dir]" can appear anywhere)
+    POSITIONAL=()
+    while [[ $# -gt 0 ]]
+    do
+        key="$1"
+        case $key in
+            --subdir)
+            subdir="$2"
+            shift # past argument
+            shift # past value
+            ;;
+            --continue)
+            CONTINUE=true
+            shift # past argument
+            ;;
+            *)    # unknown option
+            POSITIONAL+=("$1") # save it in an array for later
+            shift # past argument
+            ;;
+        esac
+    done
+    set -- "${POSITIONAL[@]}" # restore positional parameters
+
     echo "mono-repo ssh url: " $1
     url=$1
     echo "mono-repo name: " $2
     MONOREPO_NAME=$2
 
+    # Adding a trailing slash if subdir is set
+    dir=${subdir:-""}
+    if [ -n "$dir" ]; then
+        dir="$dir/"
+    fi
+
     # Pretty risky, check double-check!
-    if [[ "${3:-}" == "--continue" ]]; then
-        if [[ -d "$MONOREPO_NAME" ]]; then
-            rm -rf "$MONOREPO_NAME"
-        fi
-        git clone "$url"
-        pushd "$MONOREPO_NAME"
-    else
+    if [ ${CONTINUE:=false} == false ]; then
         if [[ -d "$MONOREPO_NAME" ]]; then
             echo "Target repository directory $MONOREPO_NAME already exists." >&2
             return 1
@@ -54,6 +78,12 @@ function create-mono {
         pushd "$MONOREPO_NAME"
         git init
         git remote add origin $url
+    else
+        if [[ -d "$MONOREPO_NAME" ]]; then
+            rm -rf "$MONOREPO_NAME"
+        fi
+        git clone "$url"
+        pushd "$MONOREPO_NAME"
     fi
     read_repositories | while read repo name; do
         if [[ -z "$name" ]]; then
@@ -92,7 +122,7 @@ function create-mono {
                 temp_branch="$name-$branch"
                 git checkout -b "$temp_branch" "$name"/"$branch"
                 git filter-branch -f --index-filter 'git ls-files -s | \
-                                                     sed "s~\(	\)\(.*\)~\1'"$name"'/\2~" | \
+                                                     sed "s~\(	\)\(.*\)~\1'"$dir$name"'/\2~" | \
                                                      GIT_INDEX_FILE=$GIT_INDEX_FILE.new \
                                                      git update-index --index-info && \
                                                      mv "$GIT_INDEX_FILE.new" "$GIT_INDEX_FILE" || true' @
