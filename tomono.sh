@@ -74,31 +74,33 @@ function create-mono {
         # Merge every branch from the sub repo into the mono repo, into a
         # branch of the same name (create one if it doesn't exist).
         remote-branches "$name" | while read branch; do
-            if git rev-parse -q --verify "$branch"; then
-                # Branch already exists, just check it out (and clean up the working dir)
+            if [[ $branch != *"bazel-mig-"* ]]; then    
+                if git rev-parse -q --verify "$branch"; then
+                    # Branch already exists, just check it out (and clean up the working dir)
+                    git checkout -q "$branch"
+                    git checkout -q -- .
+                    git clean -f -d
+                else
+                    # Create a fresh branch with an empty root commit"
+                    git checkout -q --orphan "$branch"
+                    # The ignore unmatch is necessary when this was a fresh repo
+                    git rm -rfq --ignore-unmatch .
+                    git commit -q --allow-empty -m "Root commit for $branch branch"
+                fi
+                
+                ####
+                temp_branch="$name-$branch"
+                git checkout -b "$temp_branch" "$name"/"$branch"
+                git filter-branch -f --index-filter 'git ls-files -s | \
+                                                     sed "s~\(	\)\(.*\)~\1'"$name"'/\2~" | \
+                                                     GIT_INDEX_FILE=$GIT_INDEX_FILE.new \
+                                                     git update-index --index-info && \
+                                                     mv "$GIT_INDEX_FILE.new" "$GIT_INDEX_FILE" || true' @
                 git checkout -q "$branch"
-                git checkout -q -- .
-                git clean -f -d
-            else
-                # Create a fresh branch with an empty root commit"
-                git checkout -q --orphan "$branch"
-                # The ignore unmatch is necessary when this was a fresh repo
-                git rm -rfq --ignore-unmatch .
-                git commit -q --allow-empty -m "Root commit for $branch branch"
+                git merge -q "$temp_branch" --allow-unrelated-histories
+                git branch -q -D "$temp_branch"
+                ####
             fi
-            
-            ####
-            temp_branch="$name-$branch"
-            git checkout -b "$temp_branch" "$name"/"$branch"
-            git filter-branch -f --index-filter 'git ls-files -s | \
-                                                 sed "s~\(	\)\(.*\)~\1'"$name"'/\2~" | \
-                                                 GIT_INDEX_FILE=$GIT_INDEX_FILE.new \
-                                                 git update-index --index-info && \
-                                                 mv "$GIT_INDEX_FILE.new" "$GIT_INDEX_FILE" || true' @
-            git checkout -q "$branch"
-            git merge -q "$temp_branch" --allow-unrelated-histories
-            git branch -q -D "$temp_branch"
-            ####
         done
                 
         for tag in `git ls-remote --tags $name | cut -f2 | grep -v "\^{}$" | sed -E 's/.*(RC;.*)/\1/g'`; do
