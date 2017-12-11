@@ -40,10 +40,10 @@ function create-mono {
 
     # Pretty risky, check double-check!
     if [[ "${3:-}" == "--continue" ]]; then
-        if [[ ! -d "$MONOREPO_NAME" ]]; then
-            echo "--continue specified, but nothing to resume" >&2
-            exit 1
+        if [[ -d "$MONOREPO_NAME" ]]; then
+            rm -rf "$MONOREPO_NAME"
         fi
+        git clone "$url"
         pushd "$MONOREPO_NAME"
     else
         if [[ -d "$MONOREPO_NAME" ]]; then
